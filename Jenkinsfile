@@ -46,7 +46,8 @@ pipeline {
 
         // ------------------------------
         stage('Build Docker Image') {
-            steps {
+            agent any
+	    steps {
                 script {
                     // Build Docker image for the Node.js app
                     // Tag as "myapp:latest" for local use
@@ -58,7 +59,8 @@ pipeline {
 
         // ------------------------------
         stage('Push Image') {
-            steps {
+            agent any
+	    steps {
                 withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     // Push built image to DockerHub or private registry
                     // Jenkins environment should store DOCKER_USER and DOCKER_PASS
