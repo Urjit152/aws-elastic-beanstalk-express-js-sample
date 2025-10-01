@@ -70,13 +70,13 @@ pipeline {
             }
         }
         // ------------------------------
-    }
-
-    // Post actions always run regardless of pipeline result
-    post {
-        always {
-            // Archive build log or any other artifacts for audit/reference
-            archiveArtifacts artifacts: '**/build.log', allowEmptyArchive: true
+        // ------------------------------
+        stage('Archive Logs') {
+            agent any
+            steps {
+                archiveArtifacts artifacts: '**/build.log', allowEmptyArchive: true
+            }
         }
+        // ------------------------------
     }
 }
