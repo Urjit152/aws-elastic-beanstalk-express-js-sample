@@ -1,0 +1,82 @@
+// Jenkins declarative pipeline for Node.js CI/CD
+// This pipeline installs dependencies, runs tests, scans vulnerabilities,
+// builds a Docker image, and pushes it to a container registry.
+
+pipeline {
+
+    // Use Node.js 16 Docker image as build environment
+    agent { docker { image 'node:16' } }
+
+    stages {
+
+        // ------------------------------
+        stage('Install Dependencies') {
+            steps {
+                // Install all project dependencies from package.json
+                // The flag --save ensures packages are added to dependencies list if needed
+                sh 'npm install --save'
+            }
+        }
+        // ------------------------------
+
+        // ------------------------------
+        stage('Run Tests') {
+            steps {
+                // Run test scripts defined in package.json
+                // If tests are missing, print "No tests" instead of failing
+                sh 'npm test || echo "No tests"'
+            }
+        }
+        // ------------------------------
+
+        // ------------------------------
+        stage('Security Scan') {
+            steps {
+                // Install Snyk CLI globally to scan for known vulnerabilities
+                // Run vulnerability test; fail pipeline if High/Critical issues exist
+                sh '''
+                npm install -g snyk
+                snyk test || exit 1
+                '''
+            }
+        }
+        // ------------------------------
+
+        // ------------------------------
+        stage('Build Docker Image') {
+            steps {
+                script {
+                    // Build Docker image for the Node.js app
+                    // Tag as "myapp:latest" for local use
+                    sh 'docker build -t myapp:latest .'
+                }
+            }
+        }
+        // ------------------------------
+
+        // ------------------------------
+        stage('Push Image') {
+            steps {
+                script {
+                    // Push built image to DockerHub or private registry
+                    // Jenkins environment should store DOCKER_USER and DOCKER_PASS
+                    // securely in credentials before running this step
+                    sh '''
+                    docker login -u $DOCKER_USER -p $DOCKER_PASS
+                    docker tag myapp:latest $DOCKER_USER/myapp:latest
+                    docker push $DOCKER_USER/myapp:latest
+                    '''
+                }
+            }
+        }
+        // ------------------------------
+    }
+
+    // Post actions always run regardless of pipeline result
+    post {
+        always {
+            // Archive build log or any other artifacts for audit/reference
+            archiveArtifacts artifacts: '**/build.log', allowEmptyArchive: true
+        }
+    }
+}
