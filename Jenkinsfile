@@ -59,7 +59,7 @@ pipeline {
         // ------------------------------
         stage('Push Image') {
             steps {
-                script {
+                withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     // Push built image to DockerHub or private registry
                     // Jenkins environment should store DOCKER_USER and DOCKER_PASS
                     // securely in credentials before running this step
