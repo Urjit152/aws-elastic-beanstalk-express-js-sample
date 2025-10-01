@@ -31,15 +31,17 @@ pipeline {
 
         // ------------------------------
         stage('Security Scan') {
-            steps {
-                // Install Snyk CLI globally to scan for known vulnerabilities
-                // Run vulnerability test; fail pipeline if High/Critical issues exist
-                sh '''
-                npm install -g snyk
-                snyk test || exit 1
-                '''
-            }
-        }
+	    environment {
+	        SNYK_TOKEN = credentials('SNYK_TOKEN')
+	    }
+	    steps {
+	        sh '''
+	        npm install -g snyk
+	        snyk auth $SNYK_TOKEN
+	        snyk test || exit 1
+	        '''
+	    }
+	}
         // ------------------------------
 
         // ------------------------------
