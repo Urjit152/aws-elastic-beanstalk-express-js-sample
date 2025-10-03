@@ -50,28 +50,31 @@ pipeline {
 
         // ------------------------------
         stage('Build Docker Image') {
-            agent any
-	    steps {
+            steps {
                 script {
-                    // Build Docker image for the Node.js app
-                    // Tag as "myapp:latest" for local use
-                    sh "docker build -t ${APP_IMAGE} ."
+                    echo "Building Docker image using DinD..."
+                    sh '''
+                    docker info
+                    docker build -t myapp:latest .
+                    docker images | grep myapp
+                    '''
                 }
             }
-        }
+	}
+
         // ------------------------------
 
         // ------------------------------
         stage('Push Image') {
-            agent any
 	    steps {
                 withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
                     // Push built image to DockerHub or private registry
                     // Jenkins environment should store DOCKER_USER and DOCKER_PASS
                     // securely in credentials before running this step
                     sh '''
-                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-                    docker tag ${APP_IMAGE} $DOCKER_USER/myapp:latest
+                    echo "Logging in and pushing image..."
+                    docker login -u $DOCKER_USER -p $DOCKER_PASS
+                    docker tag myapp:latest $DOCKER_USER/myapp:latest
                     docker push $DOCKER_USER/myapp:latest
                     '''
                 }
