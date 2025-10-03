@@ -1,10 +1,4 @@
-// Jenkins declarative pipeline for Node.js CI/CD
-// Installs dependencies, runs tests, scans for vulnerabilities,
-// builds a Docker image, and pushes it to a container registry.
-// Uses Docker-in-Docker (DinD) with shared named volume.
-
 pipeline {
-
   agent {
     docker {
       image 'node:16'
@@ -13,15 +7,14 @@ pipeline {
   }
 
   environment {
-    APP_IMAGE = "myapp:${env.BUILD_NUMBER}"   // Tag image with build number
-    DOCKER_HOST = "tcp://docker:2376"         // Point Docker CLI to DinD service
-    DOCKER_CERT_PATH = "/certs/client"        // TLS certs mounted from docker-certs-client
-    DOCKER_TLS_VERIFY = "1"                   // Enforce TLS verification
-    PATH = "/usr/local/bin:/usr/bin:/bin"     // Ensure docker is visible in pipeline sh steps
+    APP_IMAGE = "myapp:${env.BUILD_NUMBER}"
+    DOCKER_HOST = "tcp://docker:2376"
+    DOCKER_CERT_PATH = "/certs/client"
+    DOCKER_TLS_VERIFY = "1"
+    PATH = "/usr/local/bin:/usr/bin:/bin"
   }
 
   stages {
-
     stage('Install Dependencies') {
       steps {
         sh 'npm install --save'
@@ -47,8 +40,8 @@ pipeline {
       }
     }
 
+    // Run inside Jenkins container
     stage('Build Docker Image') {
-      agent none
       steps {
         script {
           sh "docker info"
@@ -58,8 +51,8 @@ pipeline {
       }
     }
 
+    // ✅ Run inside Jenkins container (not agent none)
     stage('Push Image') {
-      agent none
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
