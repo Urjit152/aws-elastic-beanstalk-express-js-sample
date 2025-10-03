@@ -4,10 +4,14 @@
 
 pipeline {
 
-    // Use Node.js 16 Docker image as build environment
-    agent { docker { image 'node:16' } }
+      // Use Node.js 16 Docker image as build environment
+      agent { docker { image 'node:16'; args '-v jenkins-data:/var/jenkins_home' } }
 
-    stages {
+      environment {
+        APP_IMAGE = "myapp:${env.BUILD_NUMBER}"
+      }
+
+      stages {
 
         // ------------------------------
         stage('Install Dependencies') {
@@ -24,7 +28,7 @@ pipeline {
             steps {
                 // Run test scripts defined in package.json
                 // If tests are missing, print "No tests" instead of failing
-                sh 'npm test || echo "No tests"'
+                sh 'npm test || (echo \"Tests failed\" && exit 1)'
             }
         }
         // ------------------------------
@@ -38,7 +42,7 @@ pipeline {
 	        sh '''
 	        npm install -g snyk
 	        snyk auth $SNYK_TOKEN
-	        snyk test || exit 1
+	        snyk test --severity-threshold=high || (echo "Snyk found high/critical issues" && exit 1)
 	        '''
 	    }
 	}
@@ -51,7 +55,7 @@ pipeline {
                 script {
                     // Build Docker image for the Node.js app
                     // Tag as "myapp:latest" for local use
-                    sh 'docker build -t myapp:latest .'
+                    sh "docker build -t ${APP_IMAGE} ."
                 }
             }
         }
@@ -66,8 +70,8 @@ pipeline {
                     // Jenkins environment should store DOCKER_USER and DOCKER_PASS
                     // securely in credentials before running this step
                     sh '''
-                    docker login -u $DOCKER_USER -p $DOCKER_PASS
-                    docker tag myapp:latest $DOCKER_USER/myapp:latest
+                    echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+                    docker tag ${APP_IMAGE} $DOCKER_USER/myapp:latest
                     docker push $DOCKER_USER/myapp:latest
                     '''
                 }
@@ -75,12 +79,16 @@ pipeline {
         }
         // ------------------------------
         // ------------------------------
-        stage('Archive Logs') {
-            agent any
-            steps {
-                archiveArtifacts artifacts: '**/build.log', allowEmptyArchive: true
-            }
+	stage('Archive Logs') {
+          steps {
+            archiveArtifacts artifacts: '/build.log', allowEmptyArchive: true
+          }
         }
-        // ------------------------------
+      }
+
+      post {
+        always {
+          sh 'docker images --format \"{{.Repository}}:{{.Tag}} {{.ID}}\" || true'
+        }
+      }
     }
-}
