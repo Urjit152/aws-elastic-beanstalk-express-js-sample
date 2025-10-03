@@ -46,7 +46,7 @@ pipeline {
 
     // ------------------------------
     stage('Build Docker Image') {
-      agent any // Run on Jenkins controller (Docker CLI available)
+      agent { label '' }// Run on Jenkins controller (Docker CLI available)
       steps {
         sh "docker build -t ${APP_IMAGE} ."
       }
@@ -54,7 +54,7 @@ pipeline {
 
     // ------------------------------
     stage('Push Image') {
-      agent any
+      agent { label '' }
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
@@ -69,7 +69,7 @@ pipeline {
     // ------------------------------
     stage('Archive Logs') {
       steps {
-        archiveArtifacts artifacts: '/build.log', allowEmptyArchive: true
+        archiveArtifacts artifacts: 'build.log', allowEmptyArchive: true
       }
     }
   }
