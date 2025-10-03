@@ -5,7 +5,7 @@
 pipeline {
 
       // Use Node.js 16 Docker image as build environment
-      agent { docker { image 'node:16'; args '-v jenkins-data:/var/jenkins_home' } }
+      agent { docker { image 'node-docker'; args '-v jenkins-data:/var/jenkins_home' } }
 
       environment {
         APP_IMAGE = "myapp:${env.BUILD_NUMBER}"

@@ -1,0 +1,6 @@
+FROM node:16-bookworm
+
+# Install Docker CLI
+RUN apt-get update && \
+    apt-get install -y docker.io && \
+    apt-get clean
