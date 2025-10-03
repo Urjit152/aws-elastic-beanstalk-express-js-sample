@@ -1,5 +1,5 @@
 // Jenkins declarative pipeline for Node.js CI/CD
-// Stages: install deps, run tests, security scan, build & push Docker image, archive logs.
+// Stages: install deps, run tests, security scan, build & push Docker image, archive logs
 
 pipeline {
   // Default agent: Node.js 16 container for npm and snyk
@@ -12,31 +12,30 @@ pipeline {
   }
 
   environment {
-    APP_IMAGE = "myapp:${env.BUILD_NUMBER}"   // Tag image with build number
+    APP_IMAGE = "myapp:${env.BUILD_NUMBER}" // Tag image with build number
   }
 
   stages {
+    // ------------------------------
     stage('Install Dependencies') {
       steps {
-        // Install project dependencies
         sh 'npm install --save'
       }
     }
 
+    // ------------------------------
     stage('Run Tests') {
       steps {
-        // Run Jest tests; fail pipeline if tests fail
         sh 'npm test || (echo "Tests failed" && exit 1)'
       }
     }
 
+    // ------------------------------
     stage('Security Scan') {
       environment {
-        // Inject Snyk token from Jenkins credentials
         SNYK_TOKEN = credentials('SNYK_TOKEN')
       }
       steps {
-        // Install Snyk, authenticate, and scan for high/critical vulnerabilities
         sh '''
           npm install -g snyk
           snyk auth $SNYK_TOKEN
@@ -45,16 +44,16 @@ pipeline {
       }
     }
 
+    // ------------------------------
     stage('Build Docker Image') {
-      // Run on Jenkins controller (Docker CLI available)
-      agent any
+      agent any // Run on Jenkins controller (Docker CLI available)
       steps {
         sh "docker build -t ${APP_IMAGE} ."
       }
     }
 
+    // ------------------------------
     stage('Push Image') {
-      // Run on Jenkins controller
       agent any
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
@@ -67,9 +66,9 @@ pipeline {
       }
     }
 
+    // ------------------------------
     stage('Archive Logs') {
       steps {
-        // Archive build logs for submission
         archiveArtifacts artifacts: '/build.log', allowEmptyArchive: true
       }
     }
@@ -77,7 +76,7 @@ pipeline {
 
   post {
     always {
-      // List Docker images after build
+      // List images after build
       sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
     }
   }
