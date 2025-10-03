@@ -1,4 +1,6 @@
 pipeline {
+
+  // Default agent: Node.js 16 container for npm and snyk
   agent {
     docker {
       image 'node:16'
@@ -11,10 +13,10 @@ pipeline {
     DOCKER_HOST = "tcp://docker:2376"
     DOCKER_CERT_PATH = "/certs/client"
     DOCKER_TLS_VERIFY = "1"
-    PATH = "/usr/local/bin:/usr/bin:/bin"
   }
 
   stages {
+
     stage('Install Dependencies') {
       steps {
         sh 'npm install --save'
@@ -40,19 +42,19 @@ pipeline {
       }
     }
 
-    // Run inside Jenkins container
+    //Run on Jenkins master (with Docker CLI installed)
     stage('Build Docker Image') {
+      agent { label 'master' }
       steps {
-        script {
-          sh "docker info"
-          sh "docker build -t ${APP_IMAGE} ."
-          sh "docker images | grep myapp || true"
-        }
+        sh "docker info"
+        sh "docker build -t ${APP_IMAGE} ."
+        sh "docker images | grep myapp || true"
       }
     }
 
-    // ✅ Run inside Jenkins container (not agent none)
+    // Run on Jenkins master (with Docker CLI installed)
     stage('Push Image') {
+      agent { label 'master' }
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
@@ -73,7 +75,10 @@ pipeline {
 
   post {
     always {
-      sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
+      // Run on Jenkins master to ensure docker is available
+      node('master') {
+        sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
+      }
     }
   }
 }
