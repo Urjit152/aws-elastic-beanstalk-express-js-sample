@@ -1,12 +1,10 @@
 // Jenkins declarative pipeline for Node.js CI/CD
-// This pipeline installs dependencies, runs tests, scans for vulnerabilities,
-// builds a Docker image, and pushes it to a container registry.
-// It uses Docker-in-Docker (DinD) with a shared named volume for workspace access.
+// Uses Node:16 as build agent (shared jenkins-data volume).
+// Runs Docker build/push from Jenkins with DinD (TLS).
 
 pipeline {
 
-  // Use Node.js 16 Docker image as build environment
-  // Mount jenkins-data volume so agent container can access Jenkins workspace
+  // Build agent: Node.js + shared Jenkins workspace
   agent {
     docker {
       image 'node:16'
@@ -14,9 +12,12 @@ pipeline {
     }
   }
 
-  // Define environment variable for Docker image tag
+  // Image tag + DinD env for any stage that runs Docker
   environment {
     APP_IMAGE = "myapp:${env.BUILD_NUMBER}"
+    DOCKER_HOST = "tcp://docker:2376"
+    DOCKER_CERT_PATH = "/certs/client"
+    DOCKER_TLS_VERIFY = "1"
   }
 
   stages {
@@ -24,8 +25,6 @@ pipeline {
     // ------------------------------
     stage('Install Dependencies') {
       steps {
-        // Install all project dependencies from package.json
-        // The --save flag ensures packages are added to dependencies list if needed
         sh 'npm install --save'
       }
     }
@@ -34,8 +33,6 @@ pipeline {
     // ------------------------------
     stage('Run Tests') {
       steps {
-        // Run test scripts defined in package.json
-        // If tests fail or are missing, print "Tests failed" and exit with error
         sh 'npm test || (echo "Tests failed" && exit 1)'
       }
     }
@@ -44,13 +41,9 @@ pipeline {
     // ------------------------------
     stage('Security Scan') {
       environment {
-        // Inject Snyk token securely from Jenkins credentials
         SNYK_TOKEN = credentials('SNYK_TOKEN')
       }
       steps {
-        // Install Snyk CLI globally
-        // Authenticate using token and run scan with high severity threshold
-        // Fail pipeline if high/critical vulnerabilities are found
         sh '''
           npm install -g snyk
           snyk auth $SNYK_TOKEN
@@ -62,12 +55,13 @@ pipeline {
 
     // ------------------------------
     stage('Build Docker Image') {
-      agent none // Run this stage on Jenkins host (not inside node:16 agent)
+      agent none // run on Jenkins (not inside node:16 agent)
       steps {
         script {
-          // Build Docker image for the Node.js app
-          // Tag image using build number for traceability
-          sh "docker build -t ${APP_IMAGE} ."
+          // Use absolute docker path to avoid PATH issues inside Jenkins
+          sh "/usr/bin/docker info"
+          sh "/usr/bin/docker build -t ${APP_IMAGE} ."
+          sh "/usr/bin/docker images | grep myapp || true"
         }
       }
     }
@@ -75,15 +69,13 @@ pipeline {
 
     // ------------------------------
     stage('Push Image') {
-      agent none // Run this stage on Jenkins host
+      agent none // run on Jenkins
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          // Authenticate to DockerHub using Jenkins credentials
-          // Tag and push the built image to DockerHub
           sh '''
-            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
-            docker tag ${APP_IMAGE} $DOCKER_USER/myapp:latest
-            docker push $DOCKER_USER/myapp:latest
+            echo $DOCKER_PASS | /usr/bin/docker login -u $DOCKER_USER --password-stdin
+            /usr/bin/docker tag '"${APP_IMAGE}"' $DOCKER_USER/myapp:latest
+            /usr/bin/docker push $DOCKER_USER/myapp:latest
           '''
         }
       }
@@ -93,8 +85,7 @@ pipeline {
     // ------------------------------
     stage('Archive Logs') {
       steps {
-        // Archive build logs for assignment submission
-        // Allow empty archive to avoid pipeline failure if log is missing
+        // archive optional build log for submission
         archiveArtifacts artifacts: '/build.log', allowEmptyArchive: true
       }
     }
@@ -103,10 +94,8 @@ pipeline {
 
   post {
     always {
-        // List all Docker images after pipeline completion
-        // Helps verify image creation and tag
-        sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
+      // List images for verification (use absolute docker path)
+      sh '/usr/bin/docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
     }
   }
 }
-
