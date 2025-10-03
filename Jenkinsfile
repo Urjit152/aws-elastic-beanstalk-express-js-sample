@@ -1,37 +1,42 @@
-// Jenkins declarative pipeline for Node.js CI/CD
-// Stages: install deps, run tests, security scan, build & push Docker image, archive logs
-
 pipeline {
-  // Default agent: Node.js 16 container for npm and snyk
-  // Mount jenkins-data volume so agent container sees Jenkins workspace
-  agent {
-    docker {
-      image 'node:16'
-      args '-v jenkins-data:/var/jenkins_home'
-    }
-  }
+  agent none   // don’t set a global agent
 
   environment {
-    APP_IMAGE = "myapp:${env.BUILD_NUMBER}" // Tag image with build number
+    APP_IMAGE = "myapp:${env.BUILD_NUMBER}"
   }
 
   stages {
-    // ------------------------------
     stage('Install Dependencies') {
+      agent {
+        docker {
+          image 'node:16'
+          args '-v jenkins-data:/var/jenkins_home'
+        }
+      }
       steps {
         sh 'npm install --save'
       }
     }
 
-    // ------------------------------
     stage('Run Tests') {
+      agent {
+        docker {
+          image 'node:16'
+          args '-v jenkins-data:/var/jenkins_home'
+        }
+      }
       steps {
-        sh 'npm test || (echo "Tests failed" && exit 1)'
+        sh 'npm test'
       }
     }
 
-    // ------------------------------
     stage('Security Scan') {
+      agent {
+        docker {
+          image 'node:16'
+          args '-v jenkins-data:/var/jenkins_home'
+        }
+      }
       environment {
         SNYK_TOKEN = credentials('SNYK_TOKEN')
       }
@@ -39,22 +44,20 @@ pipeline {
         sh '''
           npm install -g snyk
           snyk auth $SNYK_TOKEN
-          snyk test --severity-threshold=high || (echo "Snyk found high/critical issues" && exit 1)
+          snyk test --severity-threshold=high
         '''
       }
     }
 
-    // ------------------------------
     stage('Build Docker Image') {
-      agent { label '' }// Run on Jenkins controller (Docker CLI available)
+      agent any   // run on controller where docker CLI/socket are mounted
       steps {
         sh "docker build -t ${APP_IMAGE} ."
       }
     }
 
-    // ------------------------------
     stage('Push Image') {
-      agent { label '' }
+      agent any
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
           sh '''
@@ -66,8 +69,8 @@ pipeline {
       }
     }
 
-    // ------------------------------
     stage('Archive Logs') {
+      agent any
       steps {
         archiveArtifacts artifacts: 'build.log', allowEmptyArchive: true
       }
@@ -76,7 +79,6 @@ pipeline {
 
   post {
     always {
-      // List images after build
       sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
     }
   }
