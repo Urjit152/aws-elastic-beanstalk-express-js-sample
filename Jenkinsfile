@@ -66,7 +66,7 @@ pipeline {
 
     // ------------------------------
     stage('Build Docker Image') {
-      // Run this stage on Jenkins controller (where Docker CLI is installed)
+      // Run this stage on Jenkins controller (no label needed)
       agent any
       steps {
         // Build Docker image for the Node.js app
@@ -80,7 +80,7 @@ pipeline {
 
     // ------------------------------
     stage('Push Image') {
-      // Run this stage on Jenkins controller (where Docker CLI is installed)
+      // Run this stage on Jenkins controller (no label needed)
       agent any
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
