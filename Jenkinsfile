@@ -8,7 +8,6 @@ pipeline {
   // ------------------------------
   // Use Node.js 16 Docker image as build environment
   // Mount jenkins-data volume so agent container can access Jenkins workspace
-  // This agent is used for npm install, tests, and Snyk scan
   agent {
     docker {
       image 'node:16'
@@ -31,7 +30,6 @@ pipeline {
     stage('Install Dependencies') {
       steps {
         // Install all project dependencies from package.json
-        // The --save flag ensures packages are added to dependencies list if needed
         sh 'npm install --save'
       }
     }
@@ -41,7 +39,6 @@ pipeline {
     stage('Run Tests') {
       steps {
         // Run test scripts defined in package.json
-        // If tests fail, print "Tests failed" and exit with error
         sh 'npm test || (echo "Tests failed" && exit 1)'
       }
     }
@@ -54,9 +51,7 @@ pipeline {
         SNYK_TOKEN = credentials('SNYK_TOKEN')
       }
       steps {
-        // Install Snyk CLI globally
-        // Authenticate using token and run scan with high severity threshold
-        // Fail pipeline if high/critical vulnerabilities are found
+        // Install Snyk CLI globally and run scan
         sh '''
           npm install -g snyk
           snyk auth $SNYK_TOKEN
@@ -71,12 +66,10 @@ pipeline {
       agent none // Run this stage on Jenkins host (not inside node:16 agent)
       steps {
         script {
-          // Use absolute path to Docker CLI inside Jenkins container
-          // Build Docker image for the Node.js app
-          // Tag image using build number for traceability
-          sh "/usr/local/bin/docker info"
-          sh "/usr/local/bin/docker build -t ${APP_IMAGE} ."
-          sh "/usr/local/bin/docker images | grep myapp || true"
+          // Run docker commands using PATH (no hard-coded path)
+          sh "docker info"
+          sh "docker build -t ${APP_IMAGE} ."
+          sh "docker images | grep myapp || true"
         }
       }
     }
@@ -87,12 +80,11 @@ pipeline {
       agent none // Run this stage on Jenkins host
       steps {
         withCredentials([usernamePassword(credentialsId: 'DOCKER_CREDENTIALS', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASS')]) {
-          // Authenticate to DockerHub using Jenkins credentials
-          // Tag and push the built image to DockerHub
+          // Authenticate to DockerHub and push image
           sh '''
-            echo $DOCKER_PASS | /usr/local/bin/docker login -u $DOCKER_USER --password-stdin
-            /usr/local/bin/docker tag ${APP_IMAGE} $DOCKER_USER/myapp:latest
-            /usr/local/bin/docker push $DOCKER_USER/myapp:latest
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+            docker tag ${APP_IMAGE} $DOCKER_USER/myapp:latest
+            docker push $DOCKER_USER/myapp:latest
           '''
         }
       }
@@ -103,7 +95,6 @@ pipeline {
     stage('Archive Logs') {
       steps {
         // Archive build logs for assignment submission
-        // Allow empty archive to avoid pipeline failure if log is missing
         archiveArtifacts artifacts: '/build.log', allowEmptyArchive: true
       }
     }
@@ -113,8 +104,7 @@ pipeline {
   post {
     always {
       // List all Docker images after pipeline completion
-      // Helps verify image creation and tag
-      sh '/usr/local/bin/docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
+      sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
     }
   }
 }
