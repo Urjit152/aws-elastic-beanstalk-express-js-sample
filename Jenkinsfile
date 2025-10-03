@@ -103,11 +103,9 @@ pipeline {
 
   post {
     always {
-      node {
         // List all Docker images after pipeline completion
         // Helps verify image creation and tag
         sh 'docker images --format "{{.Repository}}:{{.Tag}} {{.ID}}" || true'
-      }
     }
   }
 }
